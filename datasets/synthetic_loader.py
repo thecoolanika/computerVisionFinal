@@ -1,9 +1,15 @@
+"""PyTorch dataset for synthetic illusion PNGs and JSONL annotations.
+
+Labels are five strings stored in ``ground_truth``; each image only uses three
+of them depending on illusion type. Helpers expose which three apply so
+evaluation can mask logits or restrict CLIP prompts.
+"""
+
 import json
 from pathlib import Path
 
 from PIL import Image
 from torch.utils.data import Dataset
-
 
 LABEL_TO_ID = {
     "left_bigger": 0,
@@ -15,12 +21,12 @@ LABEL_TO_ID = {
 ID_TO_LABEL = {v: k for k, v in LABEL_TO_ID.items()}
 NUM_CLASSES = len(LABEL_TO_ID)
 
-# Each illusion only has three physically possible answers; 5-way softmax dilutes scores.
 CANDIDATE_LABELS_HORIZONTAL = ("left_bigger", "right_bigger", "same_size")
 CANDIDATE_LABELS_VERTICAL = ("top_bigger", "bottom_bigger", "same_size")
 
 
 def candidate_labels_for_row(row: dict) -> list[str]:
+    """Return the three valid string labels for this row's ``illusion_type``."""
     itype = (row.get("meta") or {}).get("illusion_type", "")
     if itype == "ponzo":
         return list(CANDIDATE_LABELS_VERTICAL)
@@ -28,11 +34,12 @@ def candidate_labels_for_row(row: dict) -> list[str]:
 
 
 def valid_class_indices_for_row(row: dict) -> list[int]:
+    """Integer class ids matching ``candidate_labels_for_row``."""
     return [LABEL_TO_ID[l] for l in candidate_labels_for_row(row)]
 
 
 def _normalize_ground_truth(row: dict) -> str:
-    """Accept new axis-aware labels; upgrade old left/right/equal using illusion_type."""
+    """Normalize legacy ``left`` / ``right`` / ``equal`` using ``meta.illusion_type``."""
     raw = row["ground_truth"]
     if raw in LABEL_TO_ID:
         return raw
@@ -53,6 +60,8 @@ def _normalize_ground_truth(row: dict) -> str:
 
 
 class SyntheticIllusionDataset(Dataset):
+    """Load images under ``root_dir / split / images`` using ``annotations.jsonl``."""
+
     def __init__(self, root_dir, split, transform=None):
         self.root = Path(root_dir)
         self.split = split

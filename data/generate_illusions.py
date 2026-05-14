@@ -1,3 +1,10 @@
+"""Render PNG size illusions and write JSONL annotations.
+
+Ebbinghaus and Müller–Lyer use horizontal left versus right targets. Ponzo uses
+stacked horizontal bars; the lower bar follows ``left_size`` and the upper
+``right_size``. Ground-truth strings are axis-aware (see ``_ground_truth_label``).
+"""
+
 import argparse
 import json
 import math
@@ -6,13 +13,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-
-# Internal sampling keys (geometry still uses left_size / right_size in all illusions).
 _INTERNAL = ["left", "right", "equal"]
 
 
 def _ground_truth_label(illusion_type: str, internal: str) -> str:
-    """Map internal left/right/equal to axis-aware labels written to annotations."""
+    """Map sampled internal labels to stored ``ground_truth`` strings."""
     if illusion_type == "ponzo":
         if internal == "left":
             return "bottom_bigger"
@@ -89,6 +94,7 @@ def _sample_sizes(rng):
 
 
 def generate_dataset(output_dir, split, n_samples, with_context, seed=0):
+    """Write ``split/images`` PNGs and ``split/annotations.jsonl`` with one JSON object per line."""
     rng = random.Random(seed)
     out = Path(output_dir)
     img_dir = out / split / "images"
@@ -127,6 +133,7 @@ def generate_dataset(output_dir, split, n_samples, with_context, seed=0):
 
 
 def main():
+    """CLI entry: train split without context bars, test split with context."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, default="synthetic_data")
     parser.add_argument("--train_n", type=int, default=3000)

@@ -1,14 +1,8 @@
+"""CLIP zero-shot helpers for synthetic size-illusion labels."""
+
 import torch
 import torch.nn.functional as F
 from transformers import CLIPModel, CLIPProcessor
-
-
-IVQA_LABELS = ["left", "right", "equal"]
-IVQA_PROMPTS = {
-    "left": "the left object is larger",
-    "right": "the right object is larger",
-    "equal": "the two objects are equal in size",
-}
 
 SYNTHETIC_LABELS = [
     "left_bigger",
@@ -17,6 +11,7 @@ SYNTHETIC_LABELS = [
     "bottom_bigger",
     "same_size",
 ]
+
 SYNTHETIC_PROMPTS = {
     "left_bigger": "the object on the left is larger",
     "right_bigger": "the object on the right is larger",
@@ -25,13 +20,12 @@ SYNTHETIC_PROMPTS = {
     "same_size": "the two objects are the same size",
 }
 
-PROMPTS = {**SYNTHETIC_PROMPTS, **IVQA_PROMPTS}
-
-# Backwards compatibility for imports expecting LABELS / PROMPTS dict shape
-LABELS = SYNTHETIC_LABELS
+PROMPTS = dict(SYNTHETIC_PROMPTS)
+LABELS = list(SYNTHETIC_LABELS)
 
 
 def build_clip(device):
+    """Load CLIP ViT-B/32 weights and processor on the given device."""
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device).eval()
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     return model, processor
@@ -39,6 +33,7 @@ def build_clip(device):
 
 @torch.no_grad()
 def clip_predict(model, processor, image, labels=None, row=None, device="cpu"):
+    """Pick the best-matching label. Pass ``row`` from the dataset to score only the three valid options for that illusion."""
     if row is not None:
         from datasets.synthetic_loader import candidate_labels_for_row
 
