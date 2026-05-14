@@ -1,4 +1,4 @@
-#Optical Illusion Final Project
+# Optical Illusion Final Project
 
 This repo analyzes ambiguous optical illusions, generates size illusions, and analyzes them as well.
 
