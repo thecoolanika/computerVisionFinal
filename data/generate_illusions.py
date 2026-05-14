@@ -7,7 +7,27 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 
-LABELS = ["left", "right", "equal"]
+# Internal sampling keys (geometry still uses left_size / right_size in all illusions).
+_INTERNAL = ["left", "right", "equal"]
+
+
+def _ground_truth_label(illusion_type: str, internal: str) -> str:
+    """Map internal left/right/equal to axis-aware labels written to annotations."""
+    if illusion_type == "ponzo":
+        if internal == "left":
+            return "bottom_bigger"
+        if internal == "right":
+            return "top_bigger"
+        return "same_size"
+    if internal == "left":
+        return "left_bigger"
+    if internal == "right":
+        return "right_bigger"
+    return "same_size"
+
+
+def _task_for(illusion_type: str) -> str:
+    return "vertical_bar_size" if illusion_type == "ponzo" else "horizontal_bar_size"
 
 
 def _draw_ebbinghaus(draw, left_size, right_size, with_context, rng, w=384, h=256):
@@ -60,7 +80,7 @@ def _draw_ponzo(draw, left_size, right_size, with_context, rng, w=384, h=256):
 def _sample_sizes(rng):
     base = rng.uniform(22, 42)
     diff = rng.uniform(6, 16)
-    label = rng.choice(LABELS)
+    label = rng.choice(_INTERNAL)
     if label == "left":
         return base + diff, base, label
     if label == "right":
@@ -78,7 +98,7 @@ def generate_dataset(output_dir, split, n_samples, with_context, seed=0):
     with ann_path.open("w", encoding="utf-8") as f:
         for i in range(n_samples):
             illusion_type = illusion_types[i % len(illusion_types)]
-            left_size, right_size, gt = _sample_sizes(rng)
+            left_size, right_size, internal_gt = _sample_sizes(rng)
             image = Image.new("RGB", (384, 256), (245, 245, 245))
             draw = ImageDraw.Draw(image)
             if illusion_type == "ebbinghaus":
@@ -89,14 +109,16 @@ def generate_dataset(output_dir, split, n_samples, with_context, seed=0):
                 extra = _draw_ponzo(draw, int(left_size * 1.6), int(right_size * 1.6), with_context, rng)
             img_name = f"{illusion_type}_{i:05d}.png"
             image.save(img_dir / img_name)
+            gt = _ground_truth_label(illusion_type, internal_gt)
             row = {
                 "image_path": str((Path(split) / "images" / img_name).as_posix()),
-                "task": "left_vs_right_size",
+                "task": _task_for(illusion_type),
                 "ground_truth": gt,
                 "meta": {
                     "left_size": float(left_size),
                     "right_size": float(right_size),
                     "illusion_type": illusion_type,
+                    "internal_label": internal_gt,
                     "params": {"with_context": with_context, **extra},
                 },
             }

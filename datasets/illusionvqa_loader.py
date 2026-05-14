@@ -1,6 +1,8 @@
-import importlib
-import pathlib
+import importlib.util
+import importlib.machinery
+import site
 import sys
+from pathlib import Path
 
 
 SIZE_PATTERNS = [
@@ -19,16 +21,7 @@ def _is_size_question(text):
 
 
 def load_illusionvqa_size(split="test"):
-    repo_root = str(pathlib.Path(__file__).resolve().parents[1])
-    removed = False
-    if repo_root in sys.path:
-        sys.path.remove(repo_root)
-        removed = True
-    try:
-        load_dataset = importlib.import_module("datasets").load_dataset
-    finally:
-        if removed:
-            sys.path.insert(0, repo_root)
+    load_dataset = _resolve_hf_load_dataset()
     ds = load_dataset("IllusionVQA/IllusionVQA", split=split)
     ds = ds.filter(lambda x: _is_size_question(x.get("question", "")))
     return ds
@@ -46,3 +39,30 @@ def to_eval_examples(ds):
             }
         )
     return out
+
+
+def _resolve_hf_load_dataset():
+    candidates = []
+    try:
+        candidates.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        user_site = site.getusersitepackages()
+        if isinstance(user_site, str):
+            candidates.append(user_site)
+    except Exception:
+        pass
+    for base in candidates:
+        spec = importlib.machinery.PathFinder.find_spec("datasets", [base])
+        if spec is None or spec.loader is None:
+            continue
+        mod = importlib.util.module_from_spec(spec)
+        backup = sys.modules.get("datasets")
+        sys.modules["datasets"] = mod
+        spec.loader.exec_module(mod)
+        if hasattr(mod, "load_dataset"):
+            return mod.load_dataset
+        if backup is not None:
+            sys.modules["datasets"] = backup
+    raise ImportError("Could not resolve Hugging Face datasets package from site-packages")
